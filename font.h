@@ -8,6 +8,8 @@
 #define CHAR_Q 17
 #define CHAR_B 18
 #define CHAR_R 19
+#define CHAR_H 20
+#define CHAR_M 21
 
 // online led editor: https://xantorohara.github.io/led-matrix-editor/
 const byte PROGMEM clockFont[][8] = {
@@ -190,6 +192,24 @@ const byte PROGMEM clockFont[][8] = {
     B01111000,
     B01111100,
     B01100110,
+    B00000000
+  }, { // 20 - Ч
+    B00000000,
+    B01100110,
+    B01100110,
+    B01100110,
+    B00111110,
+    B00000110,
+    B00000110,
+    B00000000
+  }, { // 21 - М
+    B00000000,
+    B01000010,
+    B01100110,
+    B01111110,
+    B01011010,
+    B01000010,
+    B01000010,
     B00000000
   }
 };
