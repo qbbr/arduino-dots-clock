@@ -184,12 +184,8 @@ void setScreenHumidity() {
 
 void setScreenIntensity() {
   int d3, d4;
-  splitInt(intensity, &d3, &d4);
-  Serial.println(intensity);
-  Serial.println(d3);
-  Serial.println(d4);
-  Serial.println();
 
+  splitInt(intensity, &d3, &d4);
   fillScreen(CHAR_INTENSITY, CHAR_EMPTY, d3, d4);
 }
 
