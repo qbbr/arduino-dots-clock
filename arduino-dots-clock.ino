@@ -21,6 +21,8 @@ int second = 0; // 0-59
 // DHT
 #define DHT_PIN 7
 DHT dht(DHT_PIN, DHT11); // DHT11|DHT22
+int temperature = 0;
+int humidity = 0;
 
 // matrix
 #define DIN_PIN 11
@@ -28,7 +30,9 @@ DHT dht(DHT_PIN, DHT11); // DHT11|DHT22
 #define CS_PIN 10
 #define MAX_DEVICES 4
 #define ANIMATION_TIME 50
-#define SCREEN_TIMEOUT 10000
+#define SCREEN_MODE_IDLE_TIME 10000 // idle from mode
+#define SCREEN_AUTO_CHANGE_TIME 30000 // for SCREEN_CLOCK
+#define SCREEN_OTHER_AUTO_CHANGE_TIME 3000 // for other SCREEN_*
 #define SCREEN_CLOCK 0
 #define SCREEN_TEMPERATURE 1
 #define SCREEN_HUMIDITY 2
@@ -39,8 +43,10 @@ DHT dht(DHT_PIN, DHT11); // DHT11|DHT22
 LedControl matrix = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MAX_DEVICES); // DIN, CLK, CS, num devices
 int intensity = 8; // 0-15
 boolean dotsBlinkState = false;
+boolean autoChangeFlag = true;
 unsigned long dotsPrevMillis = 0;
-unsigned long screenPrevMillis = 0;
+unsigned long screenModeIdlePrevMillis = 0;
+unsigned long screenAutoChangePrevMillis = 0;
 int screenIndex = SCREEN_CLOCK;
 typedef void (*ScreenList)(void);
 ScreenList screenList[] = {&setScreenClock, &setScreenTemp, &setScreenHumidity, &setScreenIntensity, &setScreenHourSetter, &setScreenMinuteSetter, &setScreenQBBR};
@@ -68,12 +74,12 @@ void setup () {
   dht.begin();
 
   while (!RTC.begin()) {
-    Serial.println("Couldn't find RTC");
+    Serial.println("[E] Couldn't find RTC.");
     delay(500);
   }
 
   if (!RTC.isrunning()) {
-    Serial.println("RTC is NOT running, let's set the time!");
+    Serial.println("[W] RTC is NOT running, 1st set time.");
     RTC.adjust(DateTime(year, month, day, hour, minute, second));
     //RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
@@ -90,15 +96,19 @@ void setup () {
 void loop () {
   if (digitalRead(BTN1_PIN) == HIGH && millis() - btn1PrevMillis > 300) {
     Serial.println("BTN1 clicked");
+    autoChangeFlag = false;
     screenNext();
     btn1PrevMillis = millis();
-    screenPrevMillis = millis();
+    screenModeIdlePrevMillis = millis();
+    screenAutoChangePrevMillis = millis();
   }
 
   if (digitalRead(BTN2_PIN) == HIGH && millis() - btn2PrevMillis > 300) {
     Serial.println("BTN2 clicked");
+    autoChangeFlag = false;
     btn2PrevMillis = millis();
-    screenPrevMillis = millis();
+    screenModeIdlePrevMillis = millis();
+    screenAutoChangePrevMillis = millis();
 
     if (screenIndex == SCREEN_INTENSITY) {
       intensityDec();
@@ -111,8 +121,10 @@ void loop () {
 
   if (digitalRead(BTN3_PIN) == HIGH && millis() - btn3PrevMillis > 300) {
     Serial.println("BTN3 clicked");
+    autoChangeFlag = false;
     btn3PrevMillis = millis();
-    screenPrevMillis = millis();
+    screenModeIdlePrevMillis = millis();
+    screenAutoChangePrevMillis = millis();
 
     if (screenIndex == SCREEN_INTENSITY) {
       intensityInc();
@@ -123,11 +135,23 @@ void loop () {
     }
   }
 
-  if (screenIndex != SCREEN_CLOCK && millis() - screenPrevMillis > SCREEN_TIMEOUT) {
+  if (!autoChangeFlag && screenIndex != SCREEN_CLOCK && millis() - screenModeIdlePrevMillis > SCREEN_MODE_IDLE_TIME) {
     _d1 = _d2 = _d3 = _d4 = -1;
     setScreenByIndex(SCREEN_CLOCK);
   } else {
     setScreenByIndex(screenIndex);
+  }
+
+  if (!autoChangeFlag && millis() - screenAutoChangePrevMillis > SCREEN_AUTO_CHANGE_TIME) {
+    autoChangeFlag = true;
+  }
+
+  if (autoChangeFlag) {
+    if (screenIndex == SCREEN_CLOCK && millis() - screenAutoChangePrevMillis > SCREEN_AUTO_CHANGE_TIME) {
+      screenNext();
+    } else if (screenIndex != SCREEN_CLOCK && millis() - screenAutoChangePrevMillis > SCREEN_OTHER_AUTO_CHANGE_TIME) {
+      screenNext();
+    }
   }
 }
 
@@ -136,6 +160,21 @@ void screenNext() {
 
   if (screenIndex >= (sizeof(screenList) / sizeof(screenList[0]))) {
     screenIndex = 0;
+  }
+
+  if (autoChangeFlag) {
+    screenAutoChangePrevMillis = millis();
+    screenModeIdlePrevMillis = millis();
+
+    if (screenIndex >= 3) {
+      screenIndex = 0;
+    }
+  }
+
+  if (screenIndex == SCREEN_TEMPERATURE) {
+    temperature = getTemperature();
+  } else if (screenIndex == SCREEN_HUMIDITY) {
+    humidity = getHumidity();
   }
 
   _d1 = _d2 = _d3 = _d4 = -1;
@@ -168,17 +207,15 @@ void setScreenClock() {
 
 void setScreenTemp() {
   int d3, d4;
-  int t = getDHTTemperature();
 
-  splitInt(t, &d3, &d4);
+  splitInt(temperature, &d3, &d4);
   fillScreen(CHAR_TEMP, CHAR_PLUS, d3, d4);
 }
 
 void setScreenHumidity() {
   int d3, d4;
-  int h = getDHTHumidity();
 
-  splitInt(h, &d3, &d4);
+  splitInt(humidity, &d3, &d4);
   fillScreen(CHAR_HUMIDITY, CHAR_PERCENT, d3, d4);
 }
 
@@ -328,21 +365,25 @@ void animateMatrix(int addr, int fontLine) {
 
 /* DHT Sensor {{{ */
 
-int getDHTTemperature() {
+int getTemperature() {
   float t = dht.readTemperature();
 
   if (isnan(t)) {
     printDHTError();
+
+    return 0;
   }
 
   return (int) round(t);
 }
 
-int getDHTHumidity() {
+int getHumidity() {
   float h = dht.readHumidity();
 
   if (isnan(h)) {
     printDHTError();
+
+    return 0;
   }
 
   return (int) round(h);
