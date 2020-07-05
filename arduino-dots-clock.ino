@@ -36,10 +36,14 @@ int humidity = 0;
 #define SCREEN_CLOCK 0
 #define SCREEN_TEMPERATURE 1
 #define SCREEN_HUMIDITY 2
-#define SCREEN_INTENSITY 3
-#define SCREEN_HOUR_SETTER 4
-#define SCREEN_MINUTE_SETTER 5
-#define SCREEN_QBBR 6
+#define SCREEN_DATE 3
+#define SCREEN_INTENSITY 4
+#define SCREEN_HOUR_SETTER 5
+#define SCREEN_MINUTE_SETTER 6
+#define SCREEN_DAY_SETTER 7
+#define SCREEN_MONTH_SETTER 8
+#define SCREEN_YEAR_SETTER 9
+#define SCREEN_QBBR 10
 LedControl matrix = LedControl(DIN_PIN, CLK_PIN, CS_PIN, MAX_DEVICES); // DIN, CLK, CS, num devices
 int intensity = 8; // 0-15
 boolean dotsBlinkState = false;
@@ -49,7 +53,7 @@ unsigned long screenModeIdlePrevMillis = 0;
 unsigned long screenAutoChangePrevMillis = 0;
 int screenIndex = SCREEN_CLOCK;
 typedef void (*ScreenList)(void);
-ScreenList screenList[] = {&setScreenClock, &setScreenTemp, &setScreenHumidity, &setScreenIntensity, &setScreenHourSetter, &setScreenMinuteSetter, &setScreenQBBR};
+ScreenList screenList[] = {&setScreenClock, &setScreenTemp, &setScreenHumidity, &setScreenDate, &setScreenIntensity, &setScreenHourSetter, &setScreenMinuteSetter, &setScreenDaySetter, &setScreenMonthSetter, &setScreenYearSetter, &setScreenQBBR};
 
 int _d1 = -1; // 3 addr
 int _d2 = -1; // 2 addr
@@ -116,6 +120,12 @@ void loop () {
       hourDec();
     } else if (screenIndex == SCREEN_MINUTE_SETTER) {
       minuteDec();
+    } else if (screenIndex == SCREEN_DAY_SETTER) {
+      dayDec();
+    } else if (screenIndex == SCREEN_MONTH_SETTER) {
+      monthDec();
+    } else if (screenIndex == SCREEN_YEAR_SETTER) {
+      yearDec();
     }
   }
 
@@ -132,6 +142,12 @@ void loop () {
       hourInc();
     } else if (screenIndex == SCREEN_MINUTE_SETTER) {
       minuteInc();
+    } else if (screenIndex == SCREEN_DAY_SETTER) {
+      dayInc();
+    } else if (screenIndex == SCREEN_MONTH_SETTER) {
+      monthInc();
+    } else if (screenIndex == SCREEN_YEAR_SETTER) {
+      yearInc();
     }
   }
 
@@ -219,11 +235,23 @@ void setScreenHumidity() {
   fillScreen(CHAR_HUMIDITY, CHAR_PERCENT, d3, d4);
 }
 
+void setScreenDate() {
+  DateTime now = RTC.now();
+  int d = now.day();
+  int m = now.month();
+  int d1, d2, d3, d4;
+
+  splitInt(d, &d1, &d2);
+  splitInt(m, &d3, &d4);
+  fillScreen(d1, d2, d3, d4);
+  dateSeparator();
+}
+
 void setScreenIntensity() {
   int d3, d4;
 
   splitInt(intensity, &d3, &d4);
-  fillScreen(CHAR_INTENSITY, CHAR_EMPTY, d3, d4);
+  fillScreen(CHAR_INTENSITY, CHAR_SET, d3, d4);
 }
 
 void setScreenHourSetter() {
@@ -232,7 +260,7 @@ void setScreenHourSetter() {
   int d3, d4;
 
   splitInt(h, &d3, &d4);
-  fillScreen(CHAR_H, CHAR_EMPTY, d3, d4);
+  fillScreen(CHAR_H, CHAR_SET, d3, d4);
 }
 
 void setScreenMinuteSetter() {
@@ -241,7 +269,34 @@ void setScreenMinuteSetter() {
   int d3, d4;
 
   splitInt(m, &d3, &d4);
-  fillScreen(CHAR_M, CHAR_EMPTY, d3, d4);
+  fillScreen(CHAR_M, CHAR_SET, d3, d4);
+}
+
+void setScreenDaySetter() {
+  DateTime now = RTC.now();
+  int d = now.day();
+  int d3, d4;
+
+  splitInt(d, &d3, &d4);
+  fillScreen(CHAR_DAY, CHAR_SET, d3, d4);
+}
+
+void setScreenMonthSetter() {
+  DateTime now = RTC.now();
+  int m = now.month();
+  int d3, d4;
+
+  splitInt(m, &d3, &d4);
+  fillScreen(CHAR_MONTH, CHAR_SET, d3, d4);
+}
+
+void setScreenYearSetter() {
+  DateTime now = RTC.now();
+  int y = now.year();
+  int d1, d2, d3, d4;
+
+  splitInt(y, &d1, &d2, &d3, &d4);
+  fillScreen(d1, d2, d3, d4);
 }
 
 void setScreenQBBR() {
@@ -260,6 +315,14 @@ void splitInt(int d, int *d1, int *d2) {
     *d1 = s.substring(0, 1).toInt();
     *d2 = s.substring(1, 2).toInt();
   }
+}
+
+void splitInt(int d, int *d1, int *d2, int *d3, int *d4) {
+  String s = String(d);
+  *d1 = s.substring(0, 1).toInt();
+  *d2 = s.substring(1, 2).toInt();
+  *d3 = s.substring(2, 3).toInt();
+  *d4 = s.substring(3, 4).toInt();
 }
 
 void intensityInc() {
@@ -304,6 +367,70 @@ void minuteDec() {
   RTC.adjust(now2);
 }
 
+void dayInc() {
+  DateTime now = RTC.now();
+  DateTime now2 = now + TimeSpan(1, 0, 0, 0);
+  RTC.adjust(now2);
+}
+
+void dayDec() {
+  DateTime now = RTC.now();
+  DateTime now2 = now - TimeSpan(1, 0, 0, 0);
+  RTC.adjust(now2);
+}
+
+void monthInc() {
+  DateTime now = RTC.now();
+  int m = now.month();
+  m++;
+
+  if (m > 12) {
+    m = 1;
+  }
+
+  DateTime now2 = DateTime(now.year(), m, now.day(), now.hour(), now.minute(), now.second());
+  RTC.adjust(now2);
+}
+
+void monthDec() {
+  DateTime now = RTC.now();
+  int m = now.month();
+  m--;
+
+  if (m < 1) {
+    m = 12;
+  }
+
+  DateTime now2 = DateTime(now.year(), m, now.day(), now.hour(), now.minute(), now.second());
+  RTC.adjust(now2);
+}
+
+void yearInc() {
+  DateTime now = RTC.now();
+  int y = now.year();
+  y++;
+
+  if (y > 2099) {
+    y = 2000;
+  }
+
+  DateTime now2 = DateTime(y, now.month(), now.day(), now.hour(), now.minute(), now.second());
+  RTC.adjust(now2);
+}
+
+void yearDec() {
+  DateTime now = RTC.now();
+  int y = now.year();
+  y--;
+
+  if (y < 2000) {
+    y = 2099;
+  }
+
+  DateTime now2 = DateTime(y, now.month(), now.day(), now.hour(), now.minute(), now.second());
+  RTC.adjust(now2);
+}
+
 void dotsToggle() {
   dotsBlinkState = !dotsBlinkState;
 
@@ -311,6 +438,13 @@ void dotsToggle() {
   matrix.setLed(1, 5, 0, dotsBlinkState);
   matrix.setLed(2, 2, 7, dotsBlinkState);
   matrix.setLed(2, 5, 7, dotsBlinkState);
+}
+
+void dateSeparator() {
+  matrix.setLed(1, 6, 0, true);
+  matrix.setLed(1, 7, 0, true);
+  matrix.setLed(2, 6, 7, true);
+  matrix.setLed(2, 7, 7, true);
 }
 
 void fillScreen(int d1, int d2, int d3, int d4) {
@@ -342,7 +476,7 @@ void animateMatrix(int addr, int fontLine) {
     for (int j = 0; j < i + 1; j++) {
       byte dots = pgm_read_byte_near(&clockFont[fontLine][7 - i + j]);
 
-      if (screenIndex == SCREEN_CLOCK) {
+      if (screenIndex == SCREEN_CLOCK || screenIndex == SCREEN_DATE) {
         if (addr == 1) {
           dots = dots >> 1;
         } else if (addr == 2) {
